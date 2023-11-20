@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spy Terminal</title>
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #1a1a1a;
+        }
+
+        .terminal {
+            border: 2px solid #ff0000;
+            border-radius: 5px;
+            overflow: hidden;
+            width: 1000px;
+            height: 600px;
+            background: url('kali\ linux.webp') no-repeat center center fixed;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 10px;
+        }
+
+        #output {
+            height: 80%;
+            overflow-y: scroll;
+        }
+
+        #input {
+            width: 100%;
+            padding: 5px;
+            box-sizing: border-box;
+            background-color: #1a1a1a;
+            color: #00ff00;
+            border: none;
+            outline: none;
+        }
+
+        .red-text {
+            color: #ff0000;
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal">
+        <pre id="output"></pre>
+        <input type="text" id="input" autofocus>
+    </div>
+
+    <script>
+        const outputElement = document.getElementById('output');
+        const inputElement = document.getElementById('input');
+
+        // Sayfa yüklendiğinde önceki terminal çıktısını ve girdilerini al
+        const previousOutput = localStorage.getItem('terminalOutput') || '';
+        const previousInput = localStorage.getItem('terminalInput') || '';
+
+        // Önceki çıktıyı ve girişi ekle
+        outputElement.innerHTML = previousOutput;
+        inputElement.value = previousInput;
+
+        inputElement.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                const command = inputElement.value;
+                handleCommand(command);
+                inputElement.value = '';
+            }
+        });
+
+        function handleCommand(command) {
+            if (command.toLowerCase() === 'clear') {
+                // Eğer komut "clear" ise, terminali temizle
+                clearTerminal();
+            } else if (command.startsWith('git clone')) {
+                const repoUrl = command.split(' ')[2];
+                fetchRepoFiles(repoUrl);
+            } else {
+                outputElement.innerHTML += `<div>${'$ ' + command}</div>`;
+                outputElement.innerHTML += `<div class="red-text">Command not recognized</div>`;
+                outputElement.scrollTop = outputElement.scrollHeight;
+
+                // Çıktıyı depolama
+                saveTerminalState();
+            }
+        }
+
+        function clearTerminal() {
+            outputElement.innerHTML = ''; // Terminal içeriğini temizle
+
+            // Çıktıyı depolama
+            saveTerminalState();
+        }
+
+        async function fetchRepoFiles(repoUrl) {
+            try {
+                const response = await fetch(`https://api.github.com/repos/${repoUrl}/contents`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (Array.isArray(data) && data.length > 0 && 'content' in data[0]) {
+                        const fileContent = atob(data[0].content);
+                        outputElement.innerHTML += `<div>${'$ git clone ' + repoUrl}</div>`;
+                        outputElement.innerHTML += `<div class="red-text">File content: ${fileContent}</div>`;
+                    } else if (Array.isArray(data)) {
+                        const files = data.map(file => `<span class="red-text">${file.name}</span>`);
+                        outputElement.innerHTML += `<div>${'$ git clone ' + repoUrl}</div>`;
+                        outputElement.innerHTML += `<div>Repository files: ${files.join(', ')}</div>`;
+
+                        // Zip dosyasını indir
+                        downloadRepoZip(repoUrl);
+                    } else {
+                        outputElement.innerHTML += `<div>${'$ git clone ' + repoUrl}</div>`;
+                        outputElement.innerHTML += `<div class="red-text">No files found in the repository</div>`;
+                    }
+                } else {
+                    outputElement.innerHTML += `<div>${'$ git clone ' + repoUrl}</div>`;
+                    outputElement.innerHTML += `<div class="red-text">Error: Repository not found</div>`;
+                }
+
+                outputElement.scrollTop = outputElement.scrollHeight;
+
+                // Çıktıyı depolama
+                saveTerminalState();
+            } catch (error) {
+                outputElement.innerHTML += `<div>Error fetching repository: ${error.message}</div>`;
+                outputElement.scrollTop = outputElement.scrollHeight;
+
+                // Çıktıyı depolama
+                saveTerminalState();
+            }
+        }
+
+        function downloadRepoZip(repoUrl) {
+            const zipUrl = `https://github.com/${repoUrl}/archive/refs/heads/main.zip`;
+            outputElement.innerHTML += `<div class="red-text">Downloading repository as a zip file... Click <a href="${zipUrl}" download target="_blank">here</a> if the download doesn't start.</div>`;
+        }
+
+        function saveTerminalState() {
+            // Çıktı ve girişi depolama
+            localStorage.setItem('terminalOutput', outputElement.innerHTML);
+            localStorage.setItem('terminalInput', inputElement.value);
+        }
+    </script>
+</body>
+</html>
